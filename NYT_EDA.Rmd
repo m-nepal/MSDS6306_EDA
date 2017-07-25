@@ -1,0 +1,162 @@
+---
+title: "Live Session Unit 10 Assignment"
+author: "M Nepal"
+date: "July 21, 2017"
+output:
+  word_document: default
+  pdf_document: default
+  html_document:
+    keep_md: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning = FALSE, message = FALSE)
+```
+
+## Introduction
+
+This is R markdown document for keeping track of assignment submitted for <a href="https://datascience.smu.edu/">**MSDS-6306@SMU**</a> as an example of  **Exploratory Data Analysis (EDA)** based on dataset provided by Department of Statistics Columbia University in the City of New York.
+
+There are 32 data sets named nyt0.csv, nyt1.csv,…, nyt31.csv, which can be downloaded from <a href="http://stat.columbia.edu/~rachel/datasets/">**here**.</a> 
+
+Each csv represents one (simulated) days worth of ads shown and clicks recorded on the New York Times homepage in 2012. Each row in the csv represents a single user.
+
+This information is taken from <a href="https://rpubs.com/tmcfl/simulated-click-analysis">RPubs</a>.
+
+I have chosen <a href="http://stat.columbia.edu/~rachel/datasets/nyt1.csv">**nyt1.csv**</a> for EDA.
+
+ 
+####Required packages
+* ggplot2 
+* plyr
+* dplyr
+
+Install and/or load these packages before trying the code below.
+
+```{r}
+library(ggplot2)
+library(plyr)
+library(dplyr)
+```
+```{r}
+#Get the data from url
+fileLocation <- "http://stat.columbia.edu/~rachel/datasets/nyt1.csv"
+data1 <- read.csv(url(fileLocation))
+names(data1) # This will help to know variable names.
+```
+```{r}
+# str function provides the variable types.
+str(data1)
+```
+###Exploratory Data Analysis
+```{r}
+#Let's find summary statistics of data set, just to make a good start for EDA
+summary(data1)
+```
+####Create a new variable named ageGroup, that categorizes age into following groups:
+####<18, 18-24, 25-34, 35-44, 45-54, 55-64, and 65+
+```{r}
+# categorizes age groups
+head(data1)
+data1$ageGroup <- cut(data1$Age, c(-Inf, 18, 24, 34, 44, 54, 64, Inf))
+levels(data1$ageGroup) <- c("<18", "18-24", "25-34", "35-44", "45-54", "55-64", "65+")
+summary(data1)
+```
+
+####Use sub set of data called "ImpSub" where Impressions > 0 
+```{r}
+ImpSub <- subset(data1, Impressions > 0) # new variable ImpSub
+head(ImpSub)
+```
+####Create new variable called click-through-rate(CTR = click/impression)
+```{r}
+ImpSub$CTR <- ImpSub$Clicks/ImpSub$Impressions 
+head(ImpSub)
+```
+####Plot distributions of number impressions and click-through-rate (CTR = click/impressions) for the age groups
+```{r}
+#Plot the distribution of Impressions>0, grouped by ageGroup
+ggplot(subset(ImpSub, Impressions > 0), aes(x=Impressions, fill=ageGroup))+
+  labs(title="Impressions by age group")+
+  geom_histogram(binwidth=1)
+```
+```{r}
+#Plot the distribution of CTR>0, grouped by ageGroup
+ggplot(subset(ImpSub, CTR > 0), aes(x=CTR, fill=ageGroup))+
+  labs(title="Click-through rate by age group")+
+  geom_histogram(binwidth=0.25)
+```
+
+####Define a new variable to segment users based on click -through-rate (CTR) behavior.
+####CTR< 0.2, 0.2 <= CTR < 0.4, 0.4 <= CTR < 0.6, 0.6 <= CTR <0.8, CTR >0.8
+
+```{r}
+ImpSub$CTR_Behavior <- cut(ImpSub$CTR, c(-Inf, 0.2, 0.4, 0.6, 0.8, Inf))
+levels(ImpSub$CTR_Behavior) <- c("CTR < 0.2", "0.2 <= CTR < 0.4", "0.4 <= CTR < 0.6", "0.6 <= CTR < 0.8", "CTR  > 0.8")
+```
+
+#####7)	Get the total number of Male, Impressions, Clicks and Signed_In
+#####(0=Female, 1=Male)
+
+```{r}
+str(ImpSub)
+sapply(ImpSub[c(2,3,4,5)],sum) 
+# The sum of gender also works here as Male=1 and Female=0, Gender represents total male since female = 0
+```
+
+####Get the mean of Age, Impressions, Clicks, CTR and percentage of males and signed_In 
+
+```{r}
+
+#Before
+ImpSubPer <- sapply(ImpSub[c(1,3,4,7)],mean)
+ImpSubPer
+#Create percentage variables and combined with ImpSubPer
+percentageOfMaleAndSigned_In <- c((sapply(ImpSub[c(2,5)],sum)/sapply(ImpSub[c(2,5)],length)*100))
+percentageOfMaleAndSigned_In
+ImpSubCombined <- c(ImpSubPer,percentageOfMaleAndSigned_In)
+#after combining abd before cleaning col names
+ImpSubCombined
+##combined vector after cleaning the header for question 8
+names(ImpSubCombined)<-c("Age_mean","Impressions_mean","Clicks_mean","CTR_mean","% of  Males","% of signed_in")
+ImpSubCombined
+```
+
+####Get the means of Impressions, Clicks, CTR and percentage of males and signed_In  by AgeGroup.
+```{r}
+meansByAgeGroup <- aggregate(cbind(ImpSub$Impressions,ImpSub$Clicks,ImpSub$CTR)~ageGroup,FUN = mean,ImpSub,na.rm = TRUE)
+colnames(meansByAgeGroup) <- c("ageGroup","Impressions_mean","Clicks_mean","CTR_mean")
+meansByAgeGroup
+
+#using dplyr/plyr package
+sumOfMaleByAgeGroup <- ddply(ImpSub, "ageGroup", summarise, No_Of_Males=sum(Gender))
+sumOfMaleByAgeGroup
+sumOfSignedInAgeGroup <- ddply(ImpSub, "ageGroup", summarise, No_Of_Signed_In=sum(Signed_In))
+#Incase you want to display
+sumOfSignedInAgeGroup
+combinedMaleandSign <- merge(sumOfMaleByAgeGroup,sumOfSignedInAgeGroup,by="ageGroup")
+#In case if you want to display 
+combinedMaleandSign
+totalRows <- nrow(ImpSub)
+totalRows
+
+combinedMaleandSign$percentage_Of_Males <- ((combinedMaleandSign$No_Of_Males)/totalRows)*100
+combinedMaleandSign
+combinedMaleandSign$percentage_of_signed_In <- ((combinedMaleandSign$No_Of_Signed_In)/totalRows)*100
+combinedMaleandSign
+cleanedVector <- subset(combinedMaleandSign,select=c(1,4,5))# using dplyr package
+cleanedVector
+mergedvector <-merge(meansByAgeGroup, cleanedVector, by="ageGroup")
+mergedvector
+```
+####Create a table of CTRGroup vs AgeGroup counts.
+```{r}
+ctr_age_Table <- table(ImpSub$CTR_Behavior,ImpSub$ageGroup)
+ctr_age_Table
+```
+####Let's do One more plot
+```{r}
+hist(ImpSub$Age, main="Distribution of age", xlab="Age")
+```
+
+
